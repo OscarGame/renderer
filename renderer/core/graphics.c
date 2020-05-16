@@ -37,18 +37,12 @@ void framebuffer_release(framebuffer_t *framebuffer) {
 
 void framebuffer_clear_color(framebuffer_t *framebuffer, vec4_t color) {
     int num_pixels = framebuffer->width * framebuffer->height;
-    unsigned char r, g, b, a;
     int i;
-
-    r = float_to_uchar(color.x);
-    g = float_to_uchar(color.y);
-    b = float_to_uchar(color.z);
-    a = float_to_uchar(color.w);
     for (i = 0; i < num_pixels; i++) {
-        framebuffer->color_buffer[i * 4 + 0] = r;
-        framebuffer->color_buffer[i * 4 + 1] = g;
-        framebuffer->color_buffer[i * 4 + 2] = b;
-        framebuffer->color_buffer[i * 4 + 3] = a;
+        framebuffer->color_buffer[i * 4 + 0] = float_to_uchar(color.x);
+        framebuffer->color_buffer[i * 4 + 1] = float_to_uchar(color.y);
+        framebuffer->color_buffer[i * 4 + 2] = float_to_uchar(color.z);
+        framebuffer->color_buffer[i * 4 + 3] = float_to_uchar(color.w);
     }
 }
 
@@ -322,10 +316,9 @@ static int is_back_facing(vec3_t ndc_coords[3]) {
     vec3_t a = ndc_coords[0];
     vec3_t b = ndc_coords[1];
     vec3_t c = ndc_coords[2];
-    float signed_area = 0;
-    signed_area += a.x * b.y - a.y * b.x;
-    signed_area += b.x * c.y - b.y * c.x;
-    signed_area += c.x * a.y - c.y * a.x;
+    float signed_area = a.x * b.y - a.y * b.x +
+                        b.x * c.y - b.y * c.x +
+                        c.x * a.y - c.y * a.x;
     return signed_area <= 0;
 }
 
@@ -333,12 +326,10 @@ static int is_back_facing(vec3_t ndc_coords[3]) {
  * for viewport transformation, see subsection 2.12.1 of
  * https://www.khronos.org/registry/OpenGL/specs/es/2.0/es_full_spec_2.0.pdf
  */
-static vec3_t viewport_transform(int width_, int height_, vec3_t ndc_coord) {
-    float width = (float)width_;
-    float height = (float)height_;
-    float x = (ndc_coord.x + 1) * 0.5f * width;   /* [-1, 1] -> [0, w] */
-    float y = (ndc_coord.y + 1) * 0.5f * height;  /* [-1, 1] -> [0, h] */
-    float z = (ndc_coord.z + 1) * 0.5f;           /* [-1, 1] -> [0, 1] */
+static vec3_t viewport_transform(int width, int height, vec3_t ndc_coord) {
+    float x = (ndc_coord.x + 1) * 0.5f * (float)width;   /* [-1, 1] -> [0, w] */
+    float y = (ndc_coord.y + 1) * 0.5f * (float)height;  /* [-1, 1] -> [0, h] */
+    float z = (ndc_coord.z + 1) * 0.5f;                  /* [-1, 1] -> [0, 1] */
     return vec3_new(x, y, z);
 }
 
@@ -353,11 +344,8 @@ static int max_integer(int a, int b) {
 }
 
 static bbox_t find_bounding_box(vec2_t abc[3], int width, int height) {
-    vec2_t a = abc[0];
-    vec2_t b = abc[1];
-    vec2_t c = abc[2];
-    vec2_t min = vec2_min(vec2_min(a, b), c);
-    vec2_t max = vec2_max(vec2_max(a, b), c);
+    vec2_t min = vec2_min(vec2_min(abc[0], abc[1]), abc[2]);
+    vec2_t max = vec2_max(vec2_max(abc[0], abc[1]), abc[2]);
     bbox_t bbox;
     bbox.min_x = max_integer((int)ceil(min.x), 0);
     bbox.min_y = max_integer((int)ceil(min.y), 0);
@@ -404,10 +392,10 @@ static vec3_t calculate_weights(vec2_t abc[3], vec2_t p) {
  * https://www.khronos.org/registry/OpenGL/specs/es/2.0/es_full_spec_2.0.pdf
  */
 static float interpolate_depth(float screen_depths[3], vec3_t weights) {
-    float depth0 = screen_depths[0];
-    float depth1 = screen_depths[1];
-    float depth2 = screen_depths[2];
-    return depth0 * weights.x + depth1 * weights.y + depth2 * weights.z;
+    float depth0 = screen_depths[0] * weights.x;
+    float depth1 = screen_depths[1] * weights.y;
+    float depth2 = screen_depths[2] * weights.z;
+    return depth0 + depth1 + depth2;
 }
 
 /*
